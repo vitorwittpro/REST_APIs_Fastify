@@ -32,12 +32,36 @@ server.get("/", async (request, reply) => {
 
 server.get("/clients", () => clients);
 
+server.post("/clients", (request, reply) => {
+  try {
+    clients.push({ request });
+    console.log(request);
+    return request;
+  } catch (error) {
+    return reply.statusCode.log(error);
+  }
+});
+
+server.post("/clients", (request, reply) => {
+  try {
+    const client = clientSchema.parse(request.body);
+    clients.push(client);
+    return client;
+  } catch (error) {
+    const errorJson = JSON.stringify(error);
+    if (error instanceof ZodError) {
+      reply.status(400).send(errorJson);
+    } else return reply.status(500).send(errorJson);
+  }
+});
+
 const startServer = async () => {
   try {
-    await server.listen({ port: PORT });
-    console.log(`Server listening at ${PORT}`);
+    server.listen({ port: PORT }, (err, address) => {
+      console.log(`Server listening at ${address}`);
+    });
   } catch (err) {
-    Fastify.log.error(err);
+    console.log(err);
     process.exit(1);
   }
 };
