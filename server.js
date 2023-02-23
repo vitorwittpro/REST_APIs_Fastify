@@ -1,133 +1,62 @@
+import fastifyCors from "@fastify/cors";
 import Fastify from "fastify";
-import { fastifyCors } from "@fastify/cors";
 
-// update
-// delete
+import pkg from "pg";
+import { z } from "zod";
 
-const fastify = Fastify({ logger: true });
 const PORT = 3000;
+const fastify = Fastify({ logger: true });
 
-//
-// ROUTES
-const purchaseRoutes = (fastify, options, done) => {
-  // GET
-  fastify.get("/api/purchases", getPurchasesOpts);
-  fastify.get("/api/purchases/:id", getPurchaseOpts);
-
-  // POST
-  fastify.post("/api/purchases/new", addPurchaseOpts);
-
-  // PUT
-  fastify.put("/api/purchases/edit/:id", updatePurchaseOpts);
-
-  // DELETE
-  fastify.delete("/api/purchases/:id", deletePurchaseOpts);
-
-  done();
-};
-
-//
-// Registering routes
-fastify.register(purchaseRoutes);
-
-// Registering fastify/cors
-fastify.register(fastifyCors, {
-  origin: "*",
+const { Client } = pkg;
+const client = new Client({
+  host: "localhost",
+  user: "postgres",
+  port: 5432,
+  password: "1234",
+  database: "cars",
 });
 
-const purchases = [
-  {
-    id: 1,
-    name: "Range Rover Sport",
-    price: "84,777",
-    url: "https://s2.glbimg.com/xPjwpspdsCGgcz3ppO4F1QRK9Cw=/0x0:1600x1067/924x0/smart/filters:strip_icc()/i.s3.glbimg.com/v1/AUTH_cf9d035bf26b4646b105bd958f32089d/internal_photos/bs/2022/7/o/sjO4SWQhCvZ5AiE6Atqg/land-rover-range-rover-sport-2023-1600-0d.jpg",
-    seats: 5,
-    miles: "14,666",
-    features: [
-      "No Accidents",
-      "Low KM",
-      "Vehicle Detailed",
-      "Leather Interior",
-      "4-Wheel-Drive",
-    ],
-    description:
-      "Lorem ipsum dolor sit amet consectetur adipisicing elit. Debitis odio et laboriosam!",
-  },
-  {
-    id: 2,
-    name: "Rolls Royce Ghost",
-    price: "455,000",
-    url: "https://robbreport.com/wp-content/uploads/2021/03/1-5.jpg?w=1000",
-    seats: 5,
-    miles: "53,666",
-    features: [
-      "No Accidents",
-      "Low KM",
-      "Vehicle Detailed",
-      "Leather Interior",
-    ],
-    description:
-      "Lorem ipsum dolor sit amet consectetur adipisicing elit. Debitis odio et laboriosam! Numquam ut rem, blanditiis est rerum tenetur maxime delectus",
-  },
-  {
-    id: 3,
-    name: "Porsche Taycan",
-    price: "180,434",
-    url: "https://www.topgear.com/sites/default/files/cars-car/carousel/2021/02/pcgb20_1441_fine.jpg",
-    seats: 5,
-    miles: "0",
-    features: [
-      "No Accidents",
-      "Low KM",
-      "Vehicle Detailed",
-      "Leather Interior",
-    ],
-    description:
-      "Lorem ipsum dolor sit amet consectetur adipisicing elit. Debitis odio et",
-  },
-];
+client.connect();
 
-//
-// SCHEMA
+// Schema
 
-const purchaseType = {
+const carType = {
   type: "object",
   properties: {
     id: { type: "number" },
-    prodName: { type: "string" },
-    amount: { type: "string" },
+    name: { type: "string" },
+    price: { type: "number" },
+    url: { type: "string" },
+    seats: { type: "number" },
+    miles: { type: "string" },
+    features: { type: "array" },
+    description: { type: "string" },
   },
 };
 
-// GET
-const getPurchasesSchema = {
+const getCarsSchema = {
   schema: {
     response: {
       200: {
         type: "array",
-        items: purchaseType,
+        items: carType,
       },
     },
   },
 };
 
-const getPurchaseSchema = {
-  params: {
-    id: { type: "number" },
-  },
-  response: {
-    200: purchaseType,
-  },
-};
-
-// POST
-const addPurchaseSchema = {
+const postCarSchema = {
   body: {
     type: "object",
-    required: ["prodName", "amount"],
+    required: ["name", "price", "url", "seats", "miles", "features"],
     properties: {
-      prodName: { type: "string" },
-      amount: { type: "number" },
+      name: { type: "string" },
+      price: { type: "string" },
+      url: { type: "string" },
+      seats: { type: "number" },
+      miles: { type: "string" },
+      features: { type: "array" },
+      description: { type: "string" },
     },
   },
   response: {
@@ -135,138 +64,69 @@ const addPurchaseSchema = {
   },
 };
 
-// PUT
-const updatePurchaseSchema = {
-  body: {
-    type: "object",
-    required: ["prodName", "amount"],
-    properties: {
-      prodName: { type: "string" },
-      amount: { type: "number" },
-    },
-  },
-  params: {
-    id: { type: "number" },
-  },
-  response: {
-    200: { type: "string" },
-  },
-};
+// Handler
 
-// DELETE
-const deletePurchaseSchema = {
-  params: {
-    id: { type: "number" },
-  },
-  response: {
-    200: { type: "string" },
-  },
-};
+const getCarsHandler = (req, reply) => {
+  client.query("SELECT * FROM tab_cars", (err, response) => {
+    if (!err) {
+      reply.send(response.row);
+    } else {
+      console.log(err.message);
+    }
 
-//
-// HANDLER
-// GET
-const getPurchasesHandler = (req, reply) => {
-  reply.send(purchases);
-};
-
-const getPurchaseHandler = (req, reply) => {
-  const { id } = req.params;
-
-  const purchase = purchases.filter((purchase) => {
-    return purchase.id === id;
-  })[0];
-
-  if (!purchase)
-    return reply.status(404).send(new Error(`Purchase doesn't exist`));
-
-  return reply.send(purchase);
-};
-
-// POST
-const addPurchaseHandler = (req, reply) => {
-  const { prodName, amount } = req.body;
-
-  const id = purchases.length + 1;
-
-  purchases.push({ id, prodName, amount });
-
-  reply.send("Purchase added");
-};
-
-// PUT
-const updatePurchaseHandler = (req, reply) => {
-  const { id } = req.params;
-  const { prodName, amount } = req.body;
-
-  const purchase = purchases.filter((purchase) => {
-    return purchase.id === id;
-  })[0];
-
-  if (!purchase) {
-    return reply.status(404).send(new Error(`Purchase doesn't exit`));
-  }
-
-  purchase.prodName = prodName;
-  purchase.amount = amount;
-
-  return reply.send("Purchase updated");
-};
-
-// DELETE
-const deletePurchaseHandler = (req, reply) => {
-  const { id } = req.params;
-
-  const index = purchases.findIndex((p) => {
-    return p.id === id;
+    client.end;
   });
-
-  if (index === -1) {
-    return reply.status(404).send(new Error(`Purchase doesn't exist`));
-  }
-
-  purchases.splice(index, 1);
-
-  return reply.send("Purchase deleted");
 };
 
-//
-// OPTIONS
-// GET
-const getPurchasesOpts = {
-  schema: getPurchasesSchema,
-  handler: getPurchasesHandler,
+const postCarHandler = (req, reply) => {
+  const { name, price, url, seats, miles, features, description } = req.body;
+
+  client.query(
+    `INSERT INTO tab_cars VALUES ${
+      (name, price, url, seats, miles, features, description)
+    }`,
+    (err, response) => {
+      if (!err) {
+        console.log(response.rows);
+      } else {
+        console.log(err);
+      }
+
+      client.end;
+    }
+  );
 };
 
-const getPurchaseOpts = {
-  schema: getPurchaseSchema,
-  handler: getPurchaseHandler,
+// Options
+
+const getCarsOpts = {
+  schema: getCarsSchema,
+  handler: getCarsHandler,
 };
 
-// POST
-const addPurchaseOpts = {
-  schema: addPurchaseSchema,
-  handler: addPurchaseHandler,
+const postCarOpts = {
+  schema: postCarSchema,
+  handler: postCarHandler,
 };
 
-// PUT
-const updatePurchaseOpts = {
-  schema: updatePurchaseSchema,
-  handler: updatePurchaseHandler,
+// routes
+const carRoutes = (fastify, options, done) => {
+  fastify.get("/api/cars", getCarsOpts);
+
+  fastify.post("/api/cars/new", postCarOpts);
+
+  done();
 };
 
-// DELETE
-const deletePurchaseOpts = {
-  schema: deletePurchaseSchema,
-  handler: deletePurchaseHandler,
-};
+fastify.register(carRoutes);
+fastify.register(fastifyCors);
 
-// Start Server
+// start server
 const start = () => {
   try {
     fastify.listen({ port: PORT });
-  } catch (err) {
-    fastify.log.error(err);
+  } catch (error) {
+    fastify.log.error(error);
     process.exit(1);
   }
 };
