@@ -69,7 +69,7 @@ const postCarSchema = {
 const getCarsHandler = (req, reply) => {
   client.query("SELECT * FROM tab_cars", (err, response) => {
     if (!err) {
-      reply.send(response.row);
+      reply.send(response.rows);
     } else {
       console.log(err.message);
     }
